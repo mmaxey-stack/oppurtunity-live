@@ -138,7 +138,8 @@ export function MarketplacePremiumAlleyMacCard({
 
   function onInviteTeammate() {
     registerReferral(1);
-    const txt = `Alley Mac BOGO on Oppurtunity — code ${premium.code} or say Matthew sent you. Kent, OH.`;
+  const shareCode = deal.premiumSpotlight?.code ?? "ALLEYMAC";
+  const txt = `Alley Mac BOGO on Oppurtunity — code ${shareCode} or say Matthew sent you. Kent, OH.`;
     void navigator.clipboard?.writeText(txt);
   }
 
