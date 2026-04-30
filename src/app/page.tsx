@@ -10,11 +10,17 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { PremiumAthleteHome } from "@/components/dashboard/premium-athlete-home";
 import { AnimatedCurrency } from "@/components/dashboard/animated-currency";
 import { AnimatedInteger } from "@/components/dashboard/animated-integer";
 import { DailyActionChecklist } from "@/components/dashboard/daily-action-checklist";
 import { DailyMoneyLoop } from "@/components/dashboard/daily-money-loop";
+import { HomeFeaturedAlleyMacSection } from "@/components/dashboard/home-featured-alley-mac";
 import { SpotlightDealCard } from "@/components/dashboard/spotlight-deal-card";
+import { mapMockToDisplay } from "@/components/marketplace/map-deals";
+import { getAthleteHomeSpotlightWithFallback } from "@/lib/athlete-demo-spotlight";
+import { personalizeAlleyMacForAthlete } from "@/lib/alley-mac-personalize";
+import { ALLEY_MAC_DEAL_KEY } from "@/lib/marketplace-premium-types";
 import { MOCK_MARKETPLACE_DEALS } from "@/lib/marketplace-mock-deals";
 import { TodaySection, type NextBestAction, type TodayAction } from "@/components/dashboard/today-section";
 import { BusinessStatCards } from "@/components/business-stat-cards";
@@ -55,6 +61,12 @@ export default async function Home() {
   const proMember = isProMember(user);
   const fn = firstName(user.full_name);
 
+  const alleyMacSource = MOCK_MARKETPLACE_DEALS.find((d) => d.id === ALLEY_MAC_DEAL_KEY);
+  const alleyMacDisplay =
+    role === "athlete" && alleyMacSource
+      ? mapMockToDisplay(personalizeAlleyMacForAthlete(alleyMacSource, fn, user.id))
+      : null;
+
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekAgoIso = weekAgo.toISOString();
@@ -73,6 +85,8 @@ export default async function Home() {
     .select("id, full_name")
     .in("id", businessIds.length ? businessIds : ["00000000-0000-0000-0000-000000000000"]);
   const businessMap = new Map((businesses ?? []).map((business) => [business.id, business.full_name]));
+
+  const hasAthleteDbSpotlight = role === "athlete" && (spotlightDeals ?? []).length > 0;
 
   const { count: activeDealsCount } = await supabase
     .from("deals")
@@ -337,6 +351,72 @@ export default async function Home() {
       ? Math.max(35, Math.min(98, 52 + (activeDealsCount ?? 0) * 5 + (inboundMessagesWeek ?? 0) * 3))
       : Math.max(40, Math.min(98, 50 + (myOpenListings ?? 0) * 6 + (inboundMessagesWeek ?? 0) * 2));
 
+  const athleteActiveDeals = ((spotlightDeals ?? []).length > 0
+    ? (spotlightDeals ?? []).map((deal) => ({
+        id: deal.id,
+        title: deal.title,
+        businessName: businessMap.get(deal.business_id) ?? "Business",
+        location: deal.location ?? "Local",
+        payout: `$${Number(deal.payout).toLocaleString()}`,
+        href: `/marketplace#deal-${deal.id}`,
+        status: deal.status === "accepted" ? "Accepted" : "Pending",
+      }))
+    : getAthleteHomeSpotlightWithFallback().map((deal) => ({
+        id: deal.id,
+        title: deal.title,
+        businessName: deal.businessName,
+        location: deal.location,
+        payout: deal.payoutLabel,
+        href: `/marketplace#deal-${deal.id}`,
+        status: "Applied",
+      }))).slice(0, 3);
+
+  const athleteMessages = [
+    "Alley Mac: Perfect post, looks great.",
+    "Coffee Shop: Can you post the story today?",
+    "Mezeh Grill: Deal confirmed. Thanks.",
+  ];
+
+  if (role === "athlete") {
+    return (
+      <AppShell role={role} userName={user.full_name} userEmail={user.email} proMember={proMember}>
+        <div className="space-y-5 px-2 pb-6 pt-2 sm:px-3 md:px-4">
+          <PremiumAthleteHome
+            firstName={fn}
+            totalEarnings={displayEarnings}
+            earningsTrendPct={eTrendPct}
+            activeDealsCount={activeDealsCount ?? 0}
+            unreadMessages={unreadMessages ?? 0}
+            profileStrength={pScore}
+            activeDeals={athleteActiveDeals}
+            messageItems={athleteMessages}
+          />
+          <ScrollReveal delayMs={64}>
+            <DailyActionChecklist />
+          </ScrollReveal>
+          <ScrollReveal delayMs={66}>
+            <AthleteRetentionSystem userId={user.id} />
+          </ScrollReveal>
+          <ScrollReveal delayMs={68}>
+            <DailyMoneyLoop
+              firstName={fn}
+              earnToday={Math.max(
+                0,
+                Math.round(Number(displayEarnings) * 0.04) + (activeDealsCount ?? 0) * 45 + (unreadMessages ?? 0) * 8,
+              )}
+              activeDeals={activeDealsCount ?? 0}
+              newOpp={Math.max(0, (openMarketCount ?? 0) + (activeDealsCount ?? 0) * 2 + 1)}
+              unreadMessages={unreadMessages ?? 0}
+            />
+          </ScrollReveal>
+          <ScrollReveal delayMs={70}>
+            <GrowthLoopPanel role={role} userId={user.id} profileEarningsTotal={user.earnings_total} />
+          </ScrollReveal>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell role={role} userName={user.full_name} userEmail={user.email} proMember={proMember}>
       {role === "business" && businessCampaign ? (
@@ -372,63 +452,7 @@ export default async function Home() {
         />
       </ScrollReveal>
       {role === "athlete" ? (
-        <ScrollReveal delayMs={5}>
-          <section className="rounded-[var(--radius-xl)] border border-[#F5B942]/25 bg-[#F5B942]/[0.08] p-4 sm:p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#F5B942]/85">Core loop tracker</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Deals accepted</p>
-                <p className="text-xl font-bold text-slate-100">{activeDealsCount ?? 0}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Earnings this week</p>
-                <p className="text-xl font-bold text-emerald-300">${Math.max(75, Math.round(displayEarnings * 0.15)).toLocaleString()}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Invested amount</p>
-                <p className="text-xl font-bold text-sky-200">${Math.max(30, Math.round(displayEarnings * 0.35)).toLocaleString()}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">Deals → Messages → Paid → Invest → Repeat</p>
-          </section>
-        </ScrollReveal>
-      ) : null}
-
-      {role === "athlete" ? (
-        <ScrollReveal delayMs={8}>
-          <DailyActionChecklist />
-        </ScrollReveal>
-      ) : null}
-      {role === "athlete" ? (
-        <ScrollReveal delayMs={10}>
-          <AthleteRetentionSystem />
-        </ScrollReveal>
-      ) : null}
-
-      {role === "athlete" ? (
-        <ScrollReveal delayMs={15}>
-          <DailyMoneyLoop
-            firstName={fn}
-            isMattDemo={user.email.toLowerCase() === "mpmaxey@icloud.com"}
-          />
-        </ScrollReveal>
-      ) : null}
-
-      {role === "business" ? (
-        <ScrollReveal delayMs={40}>
-          <BusinessStatCards stats={businessStats} />
-        </ScrollReveal>
-      ) : null}
-      {role === "business" ? (
-        <ScrollReveal delayMs={44}>
-          <BusinessTopAthletes />
-        </ScrollReveal>
-      ) : null}
-      <ScrollReveal delayMs={46}>
-        <GrowthLoopPanel role={role} />
-      </ScrollReveal>
-      {role === "athlete" ? (
-        <ScrollReveal delayMs={40}>
+        <ScrollReveal delayMs={4}>
           <section className="grid gap-4 sm:gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-4">
             {stats.map((stat, i) => (
               <div key={stat.label} style={{ animationDelay: `${i * 55}ms` }} className="stagger-fade">
@@ -446,33 +470,34 @@ export default async function Home() {
         </ScrollReveal>
       ) : null}
 
-      <div className="ui-surface px-4 py-3.5 sm:px-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Weekly pulse</p>
-        <p className="mt-1 text-sm font-medium text-slate-300">
-          {role === "athlete" ? (
-            <>
-              You gained <span className="text-[#F5B942]">+{Math.min(12, (openMarketCount ?? 0) + 2)}</span> net-new
-              opportunities in view, and your profile is trending{" "}
-              <span className="font-semibold text-emerald-400/95">+{Math.max(3, 18 - pScore / 6)}%</span> vs a weak baseline
-              for athletes who do not check in.
-            </>
-          ) : (
-            <>
-              Your pipeline has <span className="font-semibold text-slate-100">{activeDealsCount ?? 0}</span> live deals
-              and <span className="font-semibold text-slate-100">{myOpenListings ?? 0}</span> open listings. Brands that
-              message daily see faster athlete acceptance.
-            </>
-          )}
-        </p>
-      </div>
+      {role === "athlete" && alleyMacDisplay ? (
+        <ScrollReveal delayMs={8}>
+          <div className="ui-surface px-4 py-5 sm:px-6 sm:py-6">
+            <HomeFeaturedAlleyMacSection deal={alleyMacDisplay} userId={user.id} userFullName={user.full_name} />
+          </div>
+        </ScrollReveal>
+      ) : null}
+
+      {role === "business" ? (
+        <ScrollReveal delayMs={40}>
+          <BusinessStatCards stats={businessStats} />
+        </ScrollReveal>
+      ) : null}
+      {role === "business" ? (
+        <ScrollReveal delayMs={44}>
+          <BusinessTopAthletes />
+        </ScrollReveal>
+      ) : null}
 
       <ScrollReveal delayMs={50}>
         <Panel
           tint={role === "athlete" ? "marketplace" : undefined}
-          title={role === "athlete" ? "Recommended opportunities" : "Top athletes to invite"}
+          title={role === "athlete" ? "Featured opportunities" : "Top athletes to invite"}
           description={
             role === "athlete"
-              ? "Hand-picked for reach and fit — these are where athletes like you are comping the fastest this week."
+              ? hasAthleteDbSpotlight
+                ? "Live open roles in the market — act while brands are still booking. Your Alley Mac featured deal is above."
+                : "More local picks below the featured Alley Mac card — tap through to open each deal."
               : "Recruit with momentum: prioritize athletes with tight audiences that match your locations."
           }
           action={
@@ -507,9 +532,10 @@ export default async function Home() {
           ) : role === "athlete" ? (
             <div className="space-y-4">
               <p className="text-sm font-medium text-[#F5E0A8]/95">
-                {openMarketCount ?? 0} open roles in the market — here are high-trust example collabs you can run today.
+                {openMarketCount ?? 0} open roles in the market — gym and coffee demos below. Tap a card for the full
+                deal and message thread.
               </p>
-              {MOCK_MARKETPLACE_DEALS.slice(0, 2).map((deal, index) => (
+              {getAthleteHomeSpotlightWithFallback().map((deal, index) => (
                 <SpotlightDealCard
                   key={deal.id}
                   id={deal.id}
@@ -544,6 +570,26 @@ export default async function Home() {
           )}
         </Panel>
       </ScrollReveal>
+
+      <div className="ui-surface px-4 py-3.5 sm:px-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Weekly pulse</p>
+        <p className="mt-1 text-sm font-medium text-slate-300">
+          {role === "athlete" ? (
+            <>
+              You gained <span className="text-[#F5B942]">+{Math.min(12, (openMarketCount ?? 0) + 2)}</span> net-new
+              opportunities in view, and your profile is trending{" "}
+              <span className="font-semibold text-emerald-400/95">+{Math.max(3, 18 - pScore / 6)}%</span> vs a weak baseline
+              for athletes who do not check in.
+            </>
+          ) : (
+            <>
+              Your pipeline has <span className="font-semibold text-slate-100">{activeDealsCount ?? 0}</span> live deals
+              and <span className="font-semibold text-slate-100">{myOpenListings ?? 0}</span> open listings. Brands that
+              message daily see faster athlete acceptance.
+            </>
+          )}
+        </p>
+      </div>
 
       <ScrollReveal delayMs={60}>
         <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.5fr_1fr] lg:gap-8">
@@ -589,7 +635,7 @@ export default async function Home() {
           >
             <div className="space-y-3">
               {(role === "athlete"
-                ? ["Social promo", "Events & appearances", "Product drops", "Local growth"]
+                ? ["Fitness & gym", "Coffee & local", "Social promo", "Local growth"]
                 : [
                     "Hey — I can bring 80+ people to your event this Friday. I will post on IG + TikTok.",
                     "New athlete match available — 12.4K followers",
@@ -626,6 +672,67 @@ export default async function Home() {
         </section>
       </ScrollReveal>
 
+      {role === "athlete" ? (
+        <ScrollReveal delayMs={62}>
+          <section className="rounded-[var(--radius-xl)] border border-[#F5B942]/25 bg-[#F5B942]/[0.08] p-4 sm:p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#F5B942]/85">Core loop tracker</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Deals accepted</p>
+                <p className="text-xl font-bold text-slate-100">{activeDealsCount ?? 0}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Earnings this week</p>
+                <p className="text-xl font-bold text-emerald-300">
+                  ${Math.max(75, Math.round(displayEarnings * 0.15)).toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Invested amount</p>
+                <p className="text-xl font-bold text-sky-200">
+                  ${Math.max(30, Math.round(displayEarnings * 0.35)).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">Deals → Messages → Paid → Invest → Repeat</p>
+          </section>
+        </ScrollReveal>
+      ) : null}
+
+      {role === "athlete" ? (
+        <ScrollReveal delayMs={64}>
+          <DailyActionChecklist />
+        </ScrollReveal>
+      ) : null}
+      {role === "athlete" ? (
+        <ScrollReveal delayMs={66}>
+          <AthleteRetentionSystem userId={user.id} />
+        </ScrollReveal>
+      ) : null}
+
+      {role === "athlete" ? (
+        <ScrollReveal delayMs={68}>
+          <DailyMoneyLoop
+            firstName={fn}
+            earnToday={Math.max(
+              0,
+              Math.round(Number(displayEarnings) * 0.04) + (activeDealsCount ?? 0) * 45 + (unreadMessages ?? 0) * 8,
+            )}
+            activeDeals={activeDealsCount ?? 0}
+            newOpp={Math.max(0, (openMarketCount ?? 0) + (activeDealsCount ?? 0) * 2 + 1)}
+            unreadMessages={unreadMessages ?? 0}
+          />
+        </ScrollReveal>
+      ) : null}
+
+      <ScrollReveal delayMs={70}>
+        <GrowthLoopPanel
+          role={role}
+          userId={user.id}
+          profileEarningsTotal={role === "athlete" ? user.earnings_total : 0}
+        />
+      </ScrollReveal>
+
       {role === "business" ? <BusinessGrowthTools proMember={proMember} /> : null}
 
       <ScrollReveal delayMs={30}>
@@ -646,7 +753,11 @@ export default async function Home() {
                     "Your deal is trending — 12 athletes viewed it",
                     "Verification complete — your business profile is trusted",
                   ]
-                : ["Welcome to oppurtunity", "Profile is active", "Identity verified for payouts"]
+                : [
+                    "Iron Haven Gym — new message about your Wednesday shoot",
+                    "$75 payout pending — Daily Grind Coffee (morning story)",
+                    "Welcome to oppurtunity — your dashboard is live",
+                  ]
             ).map((item) => (
               <article
                 key={item}
