@@ -10,7 +10,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PremiumAthleteHome } from "@/components/dashboard/premium-athlete-home";
+import { PremiumHomeDashboard } from "@/components/dashboard/premium-home-dashboard";
 import { AnimatedCurrency } from "@/components/dashboard/animated-currency";
 import { AnimatedInteger } from "@/components/dashboard/animated-integer";
 import { DailyActionChecklist } from "@/components/dashboard/daily-action-checklist";
@@ -377,11 +377,25 @@ export default async function Home() {
     "Mezeh Grill: Deal confirmed. Thanks.",
   ];
 
-  if (role === "athlete") {
+  const commonMessages =
+    role === "business"
+      ? [
+          "Alley Mac: We can launch this Friday. Confirm details.",
+          "Coffee Shop: Can you boost this with two posts today?",
+          "Mezeh Grill: Campaign approved. Thread open for assets.",
+        ]
+      : [
+          "Alley Mac: Perfect post, looks great.",
+          "Coffee Shop: Can you post the story today?",
+          "Mezeh Grill: Deal confirmed. Thanks.",
+        ];
+
+  if (role === "athlete" || role === "business") {
     return (
       <AppShell role={role} userName={user.full_name} userEmail={user.email} proMember={proMember}>
         <div className="space-y-5 px-2 pb-6 pt-2 sm:px-3 md:px-4">
-          <PremiumAthleteHome
+          <PremiumHomeDashboard
+            role={role}
             firstName={fn}
             totalEarnings={displayEarnings}
             earningsTrendPct={eTrendPct}
@@ -389,29 +403,8 @@ export default async function Home() {
             unreadMessages={unreadMessages ?? 0}
             profileStrength={pScore}
             activeDeals={athleteActiveDeals}
-            messageItems={athleteMessages}
+            messageItems={commonMessages}
           />
-          <ScrollReveal delayMs={64}>
-            <DailyActionChecklist />
-          </ScrollReveal>
-          <ScrollReveal delayMs={66}>
-            <AthleteRetentionSystem userId={user.id} />
-          </ScrollReveal>
-          <ScrollReveal delayMs={68}>
-            <DailyMoneyLoop
-              firstName={fn}
-              earnToday={Math.max(
-                0,
-                Math.round(Number(displayEarnings) * 0.04) + (activeDealsCount ?? 0) * 45 + (unreadMessages ?? 0) * 8,
-              )}
-              activeDeals={activeDealsCount ?? 0}
-              newOpp={Math.max(0, (openMarketCount ?? 0) + (activeDealsCount ?? 0) * 2 + 1)}
-              unreadMessages={unreadMessages ?? 0}
-            />
-          </ScrollReveal>
-          <ScrollReveal delayMs={70}>
-            <GrowthLoopPanel role={role} userId={user.id} profileEarningsTotal={user.earnings_total} />
-          </ScrollReveal>
         </div>
       </AppShell>
     );
